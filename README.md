@@ -15,3 +15,24 @@ demo for todolist, use flask framework to release.
 > data.sqlite 是在创建迁移仓库之后，使用upgrade命令生成。
 使用数据库迁移库，可跟踪数据库的变化，比如表结构的修改，增删表等等。
 
+
+# 每次修改orm类型时，需要手动迁移数据库
+步骤：
+1。 python app.py db migrate -m  "some comment"
+2。 python app.py db upgrade
+
+
+
+# 测试地址以及测试账号
+
+测试地址：
+http://todo.xyspurs.cn
+
+
+测试账号： 
+admin/admin
+test/123456
+
+
+
+

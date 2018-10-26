@@ -3,7 +3,42 @@
 
 
 {% block page_content %}
-<div class="row">
-    <h1>You have login HOME PAGE</h1>
-</div>
+
+<table class="table table-hover">
+    <thead>
+        <th class="active">No</th>
+        <th class="active">描述</th>
+        <th class="active">是否完成</th>
+        <th class="active">创建时间</th>
+        <th class='active'>操作</th>
+    </thead>
+    <tbody>
+        {% for task in tasks %}
+
+            <!-- tr -->
+            {% if task.status %} <tr class="success">
+            {% else %} <tr class="info"> {% endif %}
+                <td>{{ loop.index }}</td>
+                <td>{{ task.title }}</td>
+                <td>
+                    {% if task.status %}
+                    <span>已完成</span>
+                    {% else %}
+                    <span>尚未完成，仍需努力</span>
+                    {% endif %}
+                </td>
+                <td>{{ moment(task.create_time).format('LLL') }}</td>
+                <td>
+                    <a href="{{ url_for('delete', article_id=task.id) }}" class="btn btn-danger" role ="button">删除</a>
+                    <a href="{{ url_for('change', article_id=task.id) }}" class="btn btn-success" role ="button">修改</a>
+                </td>
+
+            </tr>
+        {% endfor %}
+
+    </tbody>
+</table>
+
+<a href="{{ url_for('add') }}" class="btn btn-add" role ="button">增加一条</a>
+
 {% endblock %}
