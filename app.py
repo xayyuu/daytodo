@@ -41,6 +41,9 @@ def load_user(user_id):
 
 
 class User(UserMixin, db.Model):
+    """
+    UserMixin 实现了使用login_login插件所需要调用的方法。
+    """
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(60), nullable=False)
@@ -61,7 +64,7 @@ class User(UserMixin, db.Model):
         self.username = username
         self.password = generate_password_hash(password)
 
-    # 手动产生admin/admin这个账号
+    # 产生admin/admin这个账号
 
 
 # class TodoList(db.Model):
