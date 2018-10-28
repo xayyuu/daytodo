@@ -1,8 +1,9 @@
 # -*- coding:utf-8 -*-
 import os
 from datetime import datetime
+from threading import Thread
 
-from flask import Flask
+from flask import Flask, request, current_app
 from flask import redirect, url_for
 from flask import flash
 from flask import render_template
@@ -14,9 +15,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, MigrateCommand
 from flask_moment import Moment
+from flask_mail import Mail, Message
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 
-from form import LoginForm, TaskForm
-
+from form import LoginForm, TaskForm, RegistrationForm
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -27,11 +29,21 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'da
 app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = True
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+app.config['MAIL_SERVER'] = 'smtp.126.com'  # kidult1107@126.com，使用这个的
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['TODOLIST_MAIL_SUBJECT_PREFIX'] = '[TODOLIST]'
+app.config['TODOLIST_MAIL_SENDER'] = 'TODOLIST Admin <kidult1107@126.com>'
+app.config['TODOLIST_ADMIN'] = os.environ.get('TODOLIST_ADMIN')  # Admin管理者邮箱
+
 manager = Manager(app)
 bootstrap = Bootstrap(app)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 moment = Moment(app)
+mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.session_protection = 'strong'
 login_manager.login_view = 'login'
@@ -42,14 +54,31 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+def send_async_email(app, msg):
+    with app.app_context():
+        mail.send(msg)
+
+
+def send_email(to, subject, template, **kwargs):
+    msg = Message(app.config['TODOLIST_MAIL_SUBJECT_PREFIX'] + ' ' + subject,
+                  sender=app.config['TODOLIST_MAIL_SENDER'], recipients=[to])
+    msg.body = render_template(template + '.txt', **kwargs)
+    msg.html = render_template(template + '.html', **kwargs)
+    thr = Thread(target=send_async_email, args=[app, msg])
+    thr.start()
+    return thr
+
+
 class User(UserMixin, db.Model):
     """
-    UserMixin 实现了使用login_login插件所需要调用的方法。
+    UserMixin 实现了使用flask_login插件所需要调用的方法。
     """
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(60), nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    email = db.Column(db.String(64), unique=True, index=True)
+    username = db.Column(db.String(64), unique=True, index=True)
+    password_hash = db.Column(db.String(128))
+    confirmed = db.Column(db.Boolean, default=False)
 
     @property
     def password(self):
@@ -62,7 +91,25 @@ class User(UserMixin, db.Model):
     def verify_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-    def __init__(self, username, password):
+    def generate_confirmation_token(self, expiration=3600):
+        s = Serializer(current_app.config['SECRET_KEY'], expiration)
+        return s.dumps({'confirm': self.id}).decode('utf-8')
+
+    def confirm(self, token):
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token.encode('utf-8'))
+        except:
+            return False
+        if data.get('confirm') != self.id:
+            return False
+        self.confirmed = True
+        db.session.add(self)
+        db.session.commit()
+        return True
+
+    def __init__(self, email, username, password):
+        self.email = email
         self.username = username
         self.password = generate_password_hash(password)
 
@@ -80,6 +127,22 @@ class Task(db.Model):
         self.title = title
         self.status = status
         self.create_time = datetime.utcnow()
+
+
+@app.before_request
+def before_request():
+    if current_user.is_authenticated \
+            and not current_user.confirmed \
+            and request.endpoint \
+            and request.endpoint != 'static':
+        return redirect(url_for('unconfirmed'))
+
+
+@app.route('/unconfirmed')
+def unconfirmed():
+    if current_user.is_anonymous or current_user.confirmed:
+        return redirect(url_for('index'))
+    return render_template('unconfirmed.html')
 
 
 @app.route("/")
@@ -133,13 +196,13 @@ def change(article_id):
 def login():
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(username=form.username.data).first()
+        user = User.query.filter_by(email=form.email.data).first()
         # print("form username, form password:", form.username.data, form.password.data)
         # print("username, password", user.username, user.password_hash)
         if user is not None and user.verify_password(form.password.data):
             login_user(user)
             return redirect(url_for("index"))
-        flash("Invalid username or password.")
+        flash("Invalid email or password.")
         return redirect(url_for("login"))  # Post/重定向/Get模式，确保最后一个请求是get请求
     return render_template('login.html', form=form)
 
@@ -150,6 +213,45 @@ def logout():
     logout_user()
     flash("You had logout!!!")
     return redirect(url_for("login"))
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        user = User(email=form.email.data,
+                    username=form.username.data,
+                    password=form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        token = user.generate_confirmation_token()
+        send_email(user.email, 'Confirm Your Account',
+                   'email/confirm', user=user, token=token)
+        flash('A confirmation email has been sent to you by email.')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+
+@app.route('/confirm/<token>')
+@login_required  # 有点疑问，此时从邮箱点击这个，能登录吗？
+def confirm(token):
+    if current_user.confirmed:  # 有点疑问，此时从邮箱点击这个，能登录吗？有current_user这个信息吗？
+        return redirect(url_for('index'))
+    if current_user.confirm(token):
+        flash('You have confirmed your account. Thanks!')
+    else:
+        flash('The confirmation link is invalid or has expired.')
+    return redirect(url_for('index'))
+
+
+@app.route('/confirm')
+@login_required
+def resend_confirmation():
+    token = current_user.generate_confirmation_token()
+    send_email(current_user.email, 'Confirm Your Account',
+               'email/confirm', user=current_user, token=token)
+    flash('A new confirmation email has been sent to you by email.')
+    return redirect(url_for('index'))
 
 
 @app.errorhandler(404)
@@ -168,7 +270,6 @@ def make_shell_context():
 
 manager.add_command("shell", Shell(make_context=make_shell_context))
 manager.add_command('db', MigrateCommand)
-
 
 if __name__ == "__main__":
     manager.run()

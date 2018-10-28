@@ -1,6 +1,16 @@
 # daytodo
 demo for todolist, use flask framework to release.
 
+# 运行方法  
+- 创建虚拟环境；
+- 使用pip 安装requirements.txt里的依赖包；
+```buildoutcfg
+pip install -r requirements.txt
+```
+- 进入代码目录，执行命令：
+```buildoutcfg
+python app.py runserver
+```
 
 # 手动生成admin账号的方法
 
@@ -21,6 +31,15 @@ demo for todolist, use flask framework to release.
 1。 python app.py db migrate -m  "some comment"
 2。 python app.py db upgrade
 
+
+# 环境变量   
+MAIL_USERNAME 发送人邮箱   
+MAIL_USERNAME 发送人邮箱密码  
+```buildoutcfg
+export MAIL_USERNAME=""
+epxort MAIL_USERNAME=""
+
+```
 
 
 # 测试地址以及测试账号
