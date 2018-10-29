@@ -49,11 +49,6 @@ export MAIL_PASSWORD="yutianyou1107"
 export FLASKY_ADMIN="kidult1107@126.com" 
 ```
 
-
-# 测试地址以及测试账号
-
-待续
-
 # 常见问题
 
 - 确认失败，需要检查收件邮箱是否拒收了该邮件，或者把邮件自动移到了垃圾邮件
