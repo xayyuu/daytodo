@@ -3,6 +3,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, PasswordField, RadioField
 from wtforms.validators import DataRequired, Length, Email, Regexp, EqualTo
 from wtforms import ValidationError
+from models import User
 
 
 class LoginForm(FlaskForm):
@@ -18,8 +19,6 @@ class TaskForm(FlaskForm):
 
 
 class RegistrationForm(FlaskForm):
-    from app import User
-
     email = StringField('Email', validators=[DataRequired(), Length(1, 64),
                                              Email()])
     username = StringField('Username', validators=[
@@ -36,6 +35,6 @@ class RegistrationForm(FlaskForm):
         if User.query.filter_by(email=field.data).first():
             raise ValidationError('Email already registered.')
 
-    def validate_username(self, field):
+    def validate_username(self, field):  # 背后逻辑是？
         if User.query.filter_by(username=field.data).first():
             raise ValidationError('Username already in use.')

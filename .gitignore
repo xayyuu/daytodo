@@ -1,5 +1,6 @@
-# environment variable
+# custom
 var.sh
+*.sqlite
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
